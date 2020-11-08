@@ -24,6 +24,31 @@ def test_copy_slice_from_3d():
     assert (np.mean(a) == 0.75)
 
 
+def test_copy_slice_from_3d_create_output():
+
+    test1 = cle.push(np.asarray([
+        [
+            [1, 4],
+            [0, 4]
+        ],
+        [
+            [1, 3],
+            [1, 2]
+        ]
+    ]))
+
+    test2 = cle.copy_slice(test1, slice_index = 1)
+
+    print(test2)
+    a = cle.pull(test2)
+    assert (np.min(a) == 2)
+    assert (np.max(a) == 4)
+    assert (np.mean(a) == 3.25)
+    assert a.shape[0] == 2
+    assert a.shape[1] == 2
+    assert len(a.shape) == 2
+
+
 def test_copy_slice_to_3d():
     test1 = cle.push(np.asarray([
             [3, 4],
