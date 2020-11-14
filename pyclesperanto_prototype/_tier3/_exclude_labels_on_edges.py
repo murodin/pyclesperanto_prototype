@@ -15,7 +15,6 @@ def exclude_labels_on_edges(labels_source : Image, labels_destination : Image = 
     label_indices = range(0, num_labels + 1)
 
     label_index_map = push(np.asarray(label_indices))
-    print(label_index_map)
 
     parameters = {
         "src":labels_source,
