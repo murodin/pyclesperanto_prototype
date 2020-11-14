@@ -53,7 +53,6 @@ def exclude_labels_on_edges(labels_source : Image, labels_destination : Image = 
             count = count + 1
 
     label_index_map = push(np.asarray(label_indices))
-    print(label_index_map)
 
 
     replace_intensities(labels_source, label_index_map, labels_destination)
