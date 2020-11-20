@@ -2,11 +2,12 @@ from qtpy.QtWidgets import (
     QPushButton,
     QComboBox,
     QTabWidget,
-    QHBoxLayout,
+    QVBoxLayout,
+    QGridLayout,
     QFileDialog,
     QDialogButtonBox,
     QWidget,
-    QSlider,
+    QSlider
 )
 from qtpy.QtCore import Qt
 import napari
@@ -30,13 +31,9 @@ class Gui(QWidget):
         self.viewer = viewer
         self.items = []
 
-        self.layout = QHBoxLayout(self)
-
-        print("hello")
+        self.layout = QVBoxLayout()
 
         self.init_gui()
-
-        print("world")
 
         self.setLayout(self.layout)
 
@@ -45,16 +42,19 @@ class Gui(QWidget):
     def init_gui(self, active : bool = True):
         for i in reversed(range(self.layout.count())):
             self.layout.itemAt(i).widget().setParent(None)
-                    
+
         if active:
-            self._add_button("Filter", self.add_filter_clicked, self.layout)
-            self._add_button("Binarize", self.add_binarize_clicked, self.layout)
-            self._add_button("Combine", self.add_combine_clicked, self.layout)
+            self._add_button("Filter", self.add_filter_clicked)
+            self._add_button("Binarize", self.add_binarize_clicked)
+            self._add_button("Combine", self.add_combine_clicked)
         else:
-            self._add_button("Done", self.done_clicked, self.layout)
+            self._add_button("Done", self.done_clicked)
+            self._add_button("Cancel", self.cancel_clicked)
+        #self.layout.addStretch()
+
         self.setLayout(self.layout)
 
-    def _add_button(self, title : str, handler : callable, layout : QHBoxLayout):
+    def _add_button(self, title : str, handler : callable):
         btn = QPushButton(title, self)
         btn.clicked.connect(handler)
         self.layout.addWidget(btn)
@@ -84,6 +84,13 @@ class Gui(QWidget):
         data = viewer.layers.selected[0].data
         viewer.layers.remove_selected()
         viewer.add_image(data, name = str(Gui.global_last_filter_applied))
+
+        print("Main menu")
+        self.viewer.window.remove_dock_widget(self.dock_widget)
+        self.init_gui(True)
+
+    def cancel_clicked(self):
+        viewer.layers.remove_selected()
 
         print("Main menu")
         self.viewer.window.remove_dock_widget(self.dock_widget)
@@ -205,7 +212,7 @@ with napari.gui_qt():
     # create a viewer and add some images
     viewer = napari.Viewer()
     # add the gui to the viewer as a dock widget
-    dock_widget = viewer.window.add_dock_widget(Gui(viewer), area="right")
+    dock_widget = viewer.window.add_dock_widget(Gui(viewer), area='right')
 
     viewer.add_image(image)
 
