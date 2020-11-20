@@ -267,22 +267,22 @@ def table_to_widget(table : dict) -> QTableWidget:
 
 # -----------------------------------------------------------------------------
 from skimage.io import imread
-image = imread('https://samples.fiji.sc/blobs.png')
+#image = imread('https://samples.fiji.sc/blobs.png')
 
-# https://git.mpi-cbg.de/rhaase/clij2_example_data/blob/master/lund1051_resampled.tif
-# image = imread('C:/structure/data/lund_000500_resampled.tif')
+image = imread('C:/structure/data/lund_000500_resampled.tif')
 
 
 cle.select_device("RTX")
 print(cle.get_device())
 
 with napari.gui_qt():
-    # create a viewer and add some images
+    # create a viewer and add some image
     viewer = napari.Viewer()
+    viewer.add_image(image)
+
     # add the gui to the viewer as a dock widget
     dock_widget = viewer.window.add_dock_widget(Gui(viewer), area='right')
 
-    viewer.add_image(image)
 
 
 
