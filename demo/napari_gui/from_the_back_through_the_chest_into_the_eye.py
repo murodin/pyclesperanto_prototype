@@ -7,7 +7,9 @@ from qtpy.QtWidgets import (
     QFileDialog,
     QDialogButtonBox,
     QWidget,
-    QSlider
+    QSlider,
+    QTableWidget,
+    QTableWidgetItem
 )
 from qtpy.QtCore import Qt
 import napari
@@ -19,7 +21,12 @@ import pyclesperanto_prototype as cle
 
 
 class Gui(QWidget):
-    # I hate using global variables.
+    """This Gui takes a napari as parameter and infiltrates it.
+
+    It adds some buttons for categories of operations.
+    """
+
+    # I don't like global variables.
     # But that's what it is.
     # It's a global variable.
     #                            haesleinhuepf
@@ -33,25 +40,30 @@ class Gui(QWidget):
 
         self.layout = QVBoxLayout()
 
-        self.init_gui()
+        self._init_gui()
 
         self.setLayout(self.layout)
 
         self.dock_widget = None
 
-    def init_gui(self, active : bool = True):
+    def _init_gui(self, main_menu : bool = True):
+        """Switches the GUI internally between a main menu
+        where you can select categories and a sub menu where
+        you can keep results or cancel processing.
+        """
+        # remove all buttons first
         for i in reversed(range(self.layout.count())):
             self.layout.itemAt(i).widget().setParent(None)
 
-        if active:
-            self._add_button("Filter", self.add_filter_clicked)
-            self._add_button("Binarize", self.add_binarize_clicked)
-            self._add_button("Combine", self.add_combine_clicked)
-            self._add_button("Label", self.add_label_clicked)
+        if main_menu:
+            self._add_button("Filter", self._add_filter_clicked)
+            self._add_button("Binarize", self._add_binarize_clicked)
+            self._add_button("Combine", self._add_combine_clicked)
+            self._add_button("Label", self._add_label_clicked)
+            self._add_button("Measure", self._measure_clicked)
         else:
-            self._add_button("Done", self.done_clicked)
-            self._add_button("Cancel", self.cancel_clicked)
-        #self.layout.addStretch()
+            self._add_button("Done", self._done_clicked)
+            self._add_button("Cancel", self._cancel_clicked)
 
         self.setLayout(self.layout)
 
@@ -61,50 +73,51 @@ class Gui(QWidget):
         self.layout.addWidget(btn)
         self.items.append(btn)
 
-    def add_filter_clicked(self):
-        print("Filter")
-        self.filter_gui = filter_.Gui()
-        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
-        self.init_gui(False)
+    def _add_filter_clicked(self):
+        self._activate(filter)
 
-    def add_binarize_clicked(self):
-        print("Binarize")
-        self.filter_gui = binarize_.Gui()
-        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
-        self.init_gui(False)
+    def _add_binarize_clicked(self):
+        self._activate(binarize)
 
-    def add_combine_clicked(self):
-        print("Combine")
-        self.filter_gui = combine_.Gui()
-        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
-        self.init_gui(False)
+    def _add_combine_clicked(self):
+        self._activate(combine)
 
-    def add_label_clicked(self):
-        print("Label")
-        self.filter_gui = label_.Gui()
-        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
-        self.init_gui(False)
+    def _add_label_clicked(self):
+        self._activate(label)
 
-    def done_clicked(self):
+    def _measure_clicked(self):
+        self._activate(measure)
+
+    def _activate(self, magicgui):
+        for layer in viewer.layers:
+            layer.visible = False
+
+        Gui.global_last_filter_applied = None
+        self.filter_gui = magicgui.Gui()
+        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
+        self._init_gui(False)
+
+    def _done_clicked(self):
         # magicqui somehow internally keeps the layer.
         # Thus, we need to destroy magicguis layer and add it again
-        data = viewer.layers.selected[0].data
-        viewer.layers.remove_selected()
-        if isinstance(Gui.global_last_filter_applied, label):
-            viewer.add_labels(data, name = str(Gui.global_last_filter_applied))
-        else:
-            viewer.add_image(data, name=str(Gui.global_last_filter_applied))
+        if Gui.global_last_filter_applied is not None:
+            data = viewer.layers.selected[0].data
+            viewer.layers.remove_selected()
+            if isinstance(Gui.global_last_filter_applied, Label):
+                viewer.add_labels(data, name = str(Gui.global_last_filter_applied))
+            else:
+                viewer.add_image(data, name=str(Gui.global_last_filter_applied))
+
+        self.viewer.window.remove_dock_widget(self.dock_widget)
+        self._init_gui(True)
+
+    def _cancel_clicked(self):
+        if Gui.global_last_filter_applied is not None:
+            viewer.layers.remove_selected()
 
         print("Main menu")
         self.viewer.window.remove_dock_widget(self.dock_widget)
-        self.init_gui(True)
-
-    def cancel_clicked(self):
-        viewer.layers.remove_selected()
-
-        print("Main menu")
-        self.viewer.window.remove_dock_widget(self.dock_widget)
-        self.init_gui(True)
+        self._init_gui(True)
 
 
 
@@ -115,7 +128,7 @@ from enum import Enum
 from functools import partial
 
 # -----------------------------------------------------------------------------
-class filter(Enum):
+class Filter(Enum):
     please_select = partial(cle.copy)
     mean_box = partial(cle.mean_box)
     maximum_box = partial(cle.maximum_box)
@@ -131,20 +144,23 @@ class filter(Enum):
     def __call__(self, *args):
         return self.value(*args)
 
-@magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def filter_(input: Image, operation: filter, x: float = 1, y: float = 1, z: float = 0) -> Image:
+@magicgui(auto_call=True, layout='vertical')
+def filter(input: Image, operation: Filter, x: float = 1, y: float = 1, z: float = 0) -> Image:
     if input:
         cle_input = cle.push_zyx(input.data)
-        operation = operation
         output = cle.create_like(cle_input)
         operation(cle_input, output, x, y, z)
+        output = cle.pull_zyx(output)
+
+        # workaround to cause a auto-contrast in the viewer after returning the result
+        if Gui.global_last_filter_applied is not None:
+            viewer.layers.remove_selected()
         Gui.global_last_filter_applied = operation
 
-        output = cle.pull_zyx(output)
         return output
 
 # -----------------------------------------------------------------------------
-class binarize(Enum):
+class Binarize(Enum):
     please_select = partial(cle.copy)
     threshold_otsu = partial(cle.threshold_otsu)
     greater_constant = partial(cle.greater_constant)
@@ -156,21 +172,23 @@ class binarize(Enum):
     def __call__(self, *args):
         return self.value(*args)
 
-@magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def binarize_(input1: Image, operation: binarize, constant : int = 0) -> Image:
+@magicgui(auto_call=True, layout='vertical')
+def binarize(input1: Image, operation: Binarize, constant : int = 0) -> Image:
     if input1 is not None:
         cle_input1 = cle.push_zyx(input1.data)
-
-        operation = operation
         output = cle.create_like(cle_input1)
         operation(cle_input1, output, constant)
+        output = cle.pull_zyx(output)
+
+        # workaround to cause a auto-contrast in the viewer after returning the result
+        if Gui.global_last_filter_applied is not None:
+            viewer.layers.remove_selected()
         Gui.global_last_filter_applied = operation
 
-        output = cle.pull_zyx(output)
         return output
 
 # -----------------------------------------------------------------------------
-class combine(Enum):
+class Combine(Enum):
     please_select = partial(cle.copy)
     binary_and = partial(cle.binary_and)
     binary_or = partial(cle.binary_or)
@@ -188,24 +206,26 @@ class combine(Enum):
     def __call__(self, *args):
         return self.value(*args)
 
-@magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def combine_(input1: Image, input2: Image, operation: combine) -> Image:
+@magicgui(auto_call=True, layout='vertical')
+def combine(input1: Image, input2: Image, operation: Combine) -> Image:
     if input1 is not None:
         cle_input1 = cle.push_zyx(input1.data)
         cle_input2 = cle.push_zyx(input2.data)
-
-        operation = operation
         output = cle.create_like(cle_input1)
         operation(cle_input1, cle_input2, output)
+        output = cle.pull_zyx(output)
+
+        # workaround to cause a auto-contrast in the viewer after returning the result
+        if Gui.global_last_filter_applied is not None:
+            viewer.layers.remove_selected()
         Gui.global_last_filter_applied = operation
 
-        output = cle.pull_zyx(output)
         return output
 
 
 
 # -----------------------------------------------------------------------------
-class label(Enum):
+class Label(Enum):
     please_select = partial(cle.copy)
     connected_component = partial(cle.connected_components_labeling_box)
     voronoi = partial(cle.voronoi_labeling)
@@ -214,26 +234,47 @@ class label(Enum):
     def __call__(self, *args):
         return self.value(*args)
 
-@magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def label_(input1: Image, operation: label) -> Image:
+@magicgui(auto_call=True, layout='vertical')
+def label(input1: Image, operation: Label) -> Image:
     if input1 is not None:
         cle_input1 = cle.push_zyx(input1.data)
-
-        operation = operation
         output = cle.create_like(cle_input1)
         operation(cle_input1, output)
+        output = cle.pull_zyx(output)
+
+        # workaround to cause a auto-contrast in the viewer after returning the result
+        if Gui.global_last_filter_applied is not None:
+            viewer.layers.remove_selected()
         Gui.global_last_filter_applied = operation
 
-        output = cle.pull_zyx(output)
         return output
 
+# -----------------------------------------------------------------------------
+@magicgui(layout='vertical', call_button="Measure")
+def measure(input: Image, labels : Image):
+    from skimage.measure import regionprops_table
+    table = regionprops_table(labels.data.astype(int), intensity_image=input.data, properties=('area', 'centroid', 'mean_intensity'))
+    dock_widget = table_to_widget(table)
+    viewer.window.add_dock_widget(dock_widget, area='right')
+
+def table_to_widget(table : dict) -> QTableWidget:
+    view = QTableWidget(len(next(iter(table.values()))), len(table))
+    for i, column in enumerate(table.keys()):
+        view.setItem(0, i, QTableWidgetItem(column))
+        for j, value in enumerate(table.get(column)):
+            view.setItem(j + 1, i,  QTableWidgetItem(str(value)))
+    return view
 
 # -----------------------------------------------------------------------------
 from skimage.io import imread
-#image = imread('https://samples.fiji.sc/blobs.png')
+image = imread('https://samples.fiji.sc/blobs.png')
 
 # https://git.mpi-cbg.de/rhaase/clij2_example_data/blob/master/lund1051_resampled.tif
-image = imread('C:/structure/data/lund1051_resampled.tif')
+# image = imread('C:/structure/data/lund_000500_resampled.tif')
+
+
+cle.select_device("RTX")
+print(cle.get_device())
 
 with napari.gui_qt():
     # create a viewer and add some images
@@ -242,6 +283,10 @@ with napari.gui_qt():
     dock_widget = viewer.window.add_dock_widget(Gui(viewer), area='right')
 
     viewer.add_image(image)
+
+
+
+
 
 
 
