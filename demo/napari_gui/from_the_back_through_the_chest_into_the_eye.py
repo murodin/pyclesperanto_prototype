@@ -47,6 +47,7 @@ class Gui(QWidget):
             self._add_button("Filter", self.add_filter_clicked)
             self._add_button("Binarize", self.add_binarize_clicked)
             self._add_button("Combine", self.add_combine_clicked)
+            self._add_button("Label", self.add_label_clicked)
         else:
             self._add_button("Done", self.done_clicked)
             self._add_button("Cancel", self.cancel_clicked)
@@ -62,19 +63,25 @@ class Gui(QWidget):
 
     def add_filter_clicked(self):
         print("Filter")
-        self.filter_gui = cle_filter_execution.Gui()
+        self.filter_gui = filter_.Gui()
         self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
         self.init_gui(False)
 
     def add_binarize_clicked(self):
         print("Binarize")
-        self.filter_gui = cle_binarization_execution.Gui()
+        self.filter_gui = binarize_.Gui()
         self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
         self.init_gui(False)
 
     def add_combine_clicked(self):
         print("Combine")
-        self.filter_gui = cle_combine_execution.Gui()
+        self.filter_gui = combine_.Gui()
+        self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
+        self.init_gui(False)
+
+    def add_label_clicked(self):
+        print("Label")
+        self.filter_gui = label_.Gui()
         self.dock_widget = viewer.window.add_dock_widget(self.filter_gui, area='right')
         self.init_gui(False)
 
@@ -83,7 +90,10 @@ class Gui(QWidget):
         # Thus, we need to destroy magicguis layer and add it again
         data = viewer.layers.selected[0].data
         viewer.layers.remove_selected()
-        viewer.add_image(data, name = str(Gui.global_last_filter_applied))
+        if isinstance(Gui.global_last_filter_applied, label):
+            viewer.add_labels(data, name = str(Gui.global_last_filter_applied))
+        else:
+            viewer.add_image(data, name=str(Gui.global_last_filter_applied))
 
         print("Main menu")
         self.viewer.window.remove_dock_widget(self.dock_widget)
@@ -99,11 +109,43 @@ class Gui(QWidget):
 
 
 # inspired from https://github.com/pr4deepr/pyclesperanto_prototype/blob/master/napari_clij_widget.py# Using Enums for getting a dropdown menu
-# clesperanto functions are not being passed as enum values for some reason, so they are defined as strings
+# clesperanto functions are not being passed as enum values for some reason, so
+# they are defined as strings
 from enum import Enum
 from functools import partial
 
+# -----------------------------------------------------------------------------
+class filter(Enum):
+    please_select = partial(cle.copy)
+    mean_box = partial(cle.mean_box)
+    maximum_box = partial(cle.maximum_box)
+    minimum_box = partial(cle.minimum_box)
+    top_hat_box = partial(cle.top_hat_box)
+    bottom_hat_box = partial(cle.bottom_hat_box)
+    gaussian_blur = partial(cle.gaussian_blur)
+    gradient_x = partial(cle.gradient_x)
+    gradient_y = partial(cle.gradient_y)
+    gradient_z = partial(cle.gradient_z)
+
+    #define the call method for the functions or it won't return anything
+    def __call__(self, *args):
+        return self.value(*args)
+
+@magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
+def filter_(input: Image, operation: filter, x: float = 1, y: float = 1, z: float = 0) -> Image:
+    if input:
+        cle_input = cle.push_zyx(input.data)
+        operation = operation
+        output = cle.create_like(cle_input)
+        operation(cle_input, output, x, y, z)
+        Gui.global_last_filter_applied = operation
+
+        output = cle.pull_zyx(output)
+        return output
+
+# -----------------------------------------------------------------------------
 class binarize(Enum):
+    please_select = partial(cle.copy)
     threshold_otsu = partial(cle.threshold_otsu)
     greater_constant = partial(cle.greater_constant)
     smaller_constant = partial(cle.smaller_constant)
@@ -115,7 +157,7 @@ class binarize(Enum):
         return self.value(*args)
 
 @magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def cle_binarization_execution(input1: Image, operation: binarize, constant : int = 0) -> Image:
+def binarize_(input1: Image, operation: binarize, constant : int = 0) -> Image:
     if input1 is not None:
         cle_input1 = cle.push_zyx(input1.data)
 
@@ -127,13 +169,9 @@ def cle_binarization_execution(input1: Image, operation: binarize, constant : in
         output = cle.pull_zyx(output)
         return output
 
-
-
-
-
-
-
+# -----------------------------------------------------------------------------
 class combine(Enum):
+    please_select = partial(cle.copy)
     binary_and = partial(cle.binary_and)
     binary_or = partial(cle.binary_or)
     binary_xor = partial(cle.binary_xor)
@@ -151,7 +189,7 @@ class combine(Enum):
         return self.value(*args)
 
 @magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def cle_combine_execution(input1: Image, input2: Image, operation: combine) -> Image:
+def combine_(input1: Image, input2: Image, operation: combine) -> Image:
     if input1 is not None:
         cle_input1 = cle.push_zyx(input1.data)
         cle_input2 = cle.push_zyx(input2.data)
@@ -166,47 +204,36 @@ def cle_combine_execution(input1: Image, input2: Image, operation: combine) -> I
 
 
 
-
-
-
-
-
-
-class cle_filter(Enum):
-    # using pyclesperanto filtering images with a gpu
-    #using functools.partial to return functions as enum values:
-    #https://stackoverflow.com/questions/40338652/how-to-define-enum-values-that-are-functions
-    mean_box = partial(cle.minimum_box)
-    maximum_box = partial(cle.maximum_box)
-    minimum_box = partial(cle.minimum_box)
-    top_hat_box = partial(cle.top_hat_box)
-    bottom_hat_box = partial(cle.bottom_hat_box)
-    gaussian_blur = partial(cle.gaussian_blur)
-    gradient_x = partial(cle.gradient_x)
-    gradient_y = partial(cle.gradient_y)
-    gradient_z = partial(cle.gradient_z)
+# -----------------------------------------------------------------------------
+class label(Enum):
+    please_select = partial(cle.copy)
+    connected_component = partial(cle.connected_components_labeling_box)
+    voronoi = partial(cle.voronoi_labeling)
 
     #define the call method for the functions or it won't return anything
     def __call__(self, *args):
         return self.value(*args)
 
 @magicgui(auto_call=True, layout='vertical') #, call_button='Compute')
-def cle_filter_execution(input: Image, operation: cle_filter, x: float = 1, y: float = 1, z: float = 0) -> Image:
-    if input:
-        cle_input = cle.push_zyx(input.data)
+def label_(input1: Image, operation: label) -> Image:
+    if input1 is not None:
+        cle_input1 = cle.push_zyx(input1.data)
+
         operation = operation
-        output = cle.create_like(cle_input)
-        operation(cle_input, output, x, y, z)
+        output = cle.create_like(cle_input1)
+        operation(cle_input1, output)
         Gui.global_last_filter_applied = operation
 
         output = cle.pull_zyx(output)
         return output
 
 
-
-
+# -----------------------------------------------------------------------------
 from skimage.io import imread
-image = imread('https://samples.fiji.sc/blobs.png')
+#image = imread('https://samples.fiji.sc/blobs.png')
+
+# https://git.mpi-cbg.de/rhaase/clij2_example_data/blob/master/lund1051_resampled.tif
+image = imread('C:/structure/data/lund1051_resampled.tif')
 
 with napari.gui_qt():
     # create a viewer and add some images
@@ -215,6 +242,7 @@ with napari.gui_qt():
     dock_widget = viewer.window.add_dock_widget(Gui(viewer), area='right')
 
     viewer.add_image(image)
+
 
 
 
