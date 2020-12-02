@@ -169,6 +169,14 @@ imsave("result.tif", cle.pull(labeled))
 
 [Napari Particle Analyser](https://github.com/clEsperanto/pyclesperanto_prototype/tree/master/demo/napari_gui/particle_analyser.py)
 
+</td></tr><tr><td>
+
+<img src="https://github.com/clEsperanto/pyclesperanto_prototype/raw/master/docs/images/screenshot_napari_ping_pong.png" width="300"/>
+
+</td><td>
+
+[Napari Ping Pong](https://github.com/clEsperanto/pyclesperanto_prototype/tree/master/demo/napari_gui/napari_ping_pong.py)
+
 </td></tr></table>
 
 
