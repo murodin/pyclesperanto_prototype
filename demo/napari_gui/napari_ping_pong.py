@@ -5,7 +5,7 @@
 player1_up_key = 'w'
 player1_down_key = 's'
 #
-# Player 1 keys:
+# Player 2 keys:
 player2_up_key = 'i'
 player2_down_key = 'k'
 #
